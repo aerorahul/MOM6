@@ -14,13 +14,9 @@ option(OPENMP "Enable OpenMP threading" OFF)
 
 # Application options
 option(MOM6SOLO "Build MOM6 ocean-only application" ON)
-option(MOM6SIS2 "Build MOM6 + SIS2 application" OFF)
 
 if(MOM6SOLO)
   message(STATUS "Building MOM6 ocean-only application")
-endif()
-if(MOM6SIS2)
-  message(STATUS "Building MOM6 + SIS2 application")
 endif()
 
 if(NOT CMAKE_BUILD_TYPE MATCHES "^(Debug|Release|RelWithDebInfo|MinSizeRel)$")
@@ -48,3 +44,84 @@ include(mom6_compiler_flags)
 
 add_subdirectory(src)
 add_subdirectory(config_src)
+
+### Build MOM6 library
+set(libName ${PROJECT_NAME})
+set(moduleDir "${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}")
+
+add_library(${libName} STATIC ${mom6_src_files})
+add_library(${PROJECT_NAME}::${libName} ALIAS ${libName})
+
+set_target_properties(${libName} PROPERTIES Fortran_MODULE_DIRECTORY
+                                            ${moduleDir})
+
+target_link_libraries(${libName} PUBLIC gsw::gsw_static
+                                        fms::fms_8
+                                        NetCDF::NetCDF_Fortran)
+
+target_include_directories(${libName} PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/config_src/dynamic>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/framework>)
+
+target_include_directories(${libName} INTERFACE
+  $<BUILD_INTERFACE:${moduleDir}>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
+
+if(OpenMP_Fortran_FOUND)
+  target_link_libraries(${libName} PUBLIC OpenMP::OpenMP_Fortran)
+endif()
+
+# Install compiled Fortran modules
+install(DIRECTORY ${moduleDir} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# Install libmom6.a
+install(
+  TARGETS ${libName}
+  EXPORT ${PROJECT_NAME}Exports
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  COMPONENT Library)
+
+### Build MOM6 applications
+
+if(MOM6SOLO)
+  set(exeName "mom6solo.x")
+  add_executable(${exeName} ${mom6_solo_files})
+  add_dependencies(${exeName} mom6::mom6)
+  target_link_libraries(${exeName} PUBLIC mom6::mom6)
+  list(APPEND EXE_TARGETS ${exeName})
+endif()
+
+# Install mom6 applications
+if(EXE_TARGETS)
+  install(
+    TARGETS ${EXE_TARGETS}
+    RUNTIME DESTINATION bin
+    COMPONENT Applications)
+endif()
+
+### Package config
+include(CMakePackageConfigHelpers)
+set(CONFIG_INSTALL_DESTINATION lib/cmake/${PROJECT_NAME})
+
+export(EXPORT ${PROJECT_NAME}Exports
+  NAMESPACE ${PROJECT_NAME}::
+  FILE ${PROJECT_NAME}-targets.cmake)
+
+configure_package_config_file(
+  ${PROJECT_SOURCE_DIR}/cmake/MOM6Config.cmake.in ${CMAKE_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+  INSTALL_DESTINATION ${CONFIG_INSTALL_DESTINATION})
+install(FILES ${CMAKE_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+  DESTINATION ${CONFIG_INSTALL_DESTINATION})
+
+write_basic_package_version_file(
+  ${CMAKE_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY AnyNewerVersion)
+install(FILES ${CMAKE_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+  DESTINATION ${CONFIG_INSTALL_DESTINATION})
+
+install(EXPORT ${PROJECT_NAME}Exports
+  NAMESPACE ${PROJECT_NAME}::
+  FILE ${PROJECT_NAME}-targets.cmake
+  DESTINATION ${CONFIG_INSTALL_DESTINATION})
