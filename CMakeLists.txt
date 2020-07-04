@@ -34,7 +34,7 @@ endif()
 
 find_package(NetCDF REQUIRED COMPONENTS Fortran)
 find_package(gsw REQUIRED COMPONENTS STATIC)
-find_package(libFMS REQUIRED)
+find_package(fms REQUIRED)
 
 if(OPENMP)
   find_package(OpenMP REQUIRED COMPONENTS Fortran)
@@ -56,7 +56,7 @@ set_target_properties(${libName} PROPERTIES Fortran_MODULE_DIRECTORY
                                             ${moduleDir})
 
 target_link_libraries(${libName} PUBLIC gsw::gsw_static
-                                        libFMS::fms_r8
+                                        fms::fms_8
                                         NetCDF::NetCDF_Fortran)
 
 target_include_directories(${libName} PUBLIC
