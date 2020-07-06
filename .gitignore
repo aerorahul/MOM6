@@ -4,5 +4,6 @@
 html
 *.log
 MOM6
-build/
+build*/
+install*/
 deps/
